@@ -12,17 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import webapp2
-from google.appengine.api import urlfetch
-from google.appengine.api import mail
-from google.appengine.ext import ndb
-
 import json
 import urllib
 import logging
 from datetime import datetime
 import datetime as DT
 import re
+
+
+import webapp2
+from google.appengine.api import urlfetch
+from google.appengine.api import mail
+from google.appengine.ext import ndb
 
 
 EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+")
@@ -54,11 +55,12 @@ class UserDetails(ndb.Model):
 
 
 def set_timeout(sec=60):
+    """Set timeout."""
     urlfetch.set_default_fetch_deadline(sec)
 
 
-# Method to send message to the end user.
 def send_message(text, chat_id, reply_markup=None):
+    """Method to send message to the end user."""
     url = URL + 'sendMessage'
     payload = {"chat_id": chat_id, "text": text}
 
@@ -75,8 +77,8 @@ def send_message(text, chat_id, reply_markup=None):
     logger.info("Message status : {0}".format(result.content))
 
 
-# Method to send email to the end user.
 def send_mail_to_user(email_id, operation, chat_dict):
+    """Method to send email to the end user."""
     logger.info("Preparing email body")
     subject = "Booking " + operation + " at Khaana Khazana"
     booking_details = "Table for : " + str(chat_dict["table_size"]) + " People.\n"
@@ -86,23 +88,20 @@ def send_mail_to_user(email_id, operation, chat_dict):
     message_body = "Dear {0}, your booking details are as follows - \n{1} \n\n" \
                    "Yours, \nKhaana Khazana Team".format(chat_dict['first_name'], booking_details)
 
-    try:
-        mail.send_mail(sender='noreply@{0}.appspotmail.com'.format(PROJECT_ID),
-                       to=email_id,
-                       subject=subject,
-                       body=message_body)
-    except Exception as e:
-        logger.info("Sending mail resulted in an exception. Invalid Email ID!")
-        logger.info("Exception {0}".format(e.message))
-        return
+    mail.send_mail(sender='noreply@{0}.appspotmail.com'.format(PROJECT_ID),
+                   to=email_id,
+                   subject=subject,
+                   body=message_body)
 
 
-# Method to update Datastore Models defined above for Chat
 def update_db(chat_dict, chat_info):
+    """Method to update Datastore Models defined above for Chat"""
     if chat_info is None:
-        chat_info = Chat(user_id=chat_dict.get('user_id'), user_email=chat_dict.get('user_email'), state=chat_dict.get('state'),
-                       time=chat_dict.get('time'), table_num=chat_dict.get('table_num'), table_size=chat_dict.get('table_size'),
-                       date=chat_dict.get('date'), first_name=chat_dict.get('first_name'), id=chat_dict.get('id'))
+        chat_info = Chat(user_id=chat_dict.get('user_id'), user_email=chat_dict.get('user_email'),
+                         table_num=chat_dict.get('table_num'), time=chat_dict.get('time'),
+                         state=chat_dict.get('state'), table_size=chat_dict.get('table_size'),
+                         date=chat_dict.get('date'), first_name=chat_dict.get('first_name'),
+                         id=chat_dict.get('id'))
     else:
         chat_info.user_id = chat_dict.get('user_id')
         chat_info.user_email = chat_dict.get('user_email')
@@ -117,16 +116,37 @@ def update_db(chat_dict, chat_info):
     logger.info("Chat State : {0}".format(chat_dict.get('state')))
 
 
-# Check if App is working.
+def get_keyboard(keyboard_type, input_date):
+    """Returns Keyboard structure for date and time input in a Chat"""
+    if keyboard_type == "date":
+        today = DT.date.today()
+        keyboard = [[str(today + DT.timedelta(days=0)), str(today + DT.timedelta(days=1))],
+                    [str(today + DT.timedelta(days=2)), str(today + DT.timedelta(days=3))],
+                    [str(today + DT.timedelta(days=4)), str(today + DT.timedelta(days=5))],
+                    [str(today + DT.timedelta(days=6))]]
+    else:
+        # Opening time 2PM, Closing Time 11PM | Time slots 1 Hour
+        start_time = input_date.replace(hour=14, minute=00)
+        keyboard = [[str(start_time), str(start_time + DT.timedelta(hours=1))],
+                    [str(start_time + DT.timedelta(hours=2)), str(start_time + DT.timedelta(hours=3))],
+                    [str(start_time + DT.timedelta(hours=4)), str(start_time + DT.timedelta(hours=5))],
+                    [str(start_time + DT.timedelta(hours=6)), str(start_time + DT.timedelta(hours=7))],
+                    [str(start_time + DT.timedelta(hours=8)), str(start_time + DT.timedelta(hours=9))]]
+    return keyboard
+
+
 class MainPage(webapp2.RequestHandler):
+    """Check if Application is working with Hello, World!"""
     def get(self):
+        """RequestHandler's GET Method."""
         self.response.headers['Content-Type'] = 'text/plain'
         self.response.write('Hello, World!')
 
 
-# Basic information about our bot.
 class MeHandler(webapp2.RequestHandler):
+    """Basic information about our bot."""
     def get(self):
+        """RequestHandler's GET Method."""
         url = URL + 'getMe'
         about_me = urlfetch.fetch(url)
 
@@ -134,9 +154,10 @@ class MeHandler(webapp2.RequestHandler):
         self.response.write(about_me.content)
 
 
-# Get information about webhook status read.
 class GetWebhookHandler(webapp2.RequestHandler):
+    """Get information about webhook status read."""
     def get(self):
+        """RequestHandler's GET Method."""
         url = URL + 'getWebhookInfo'
         telegram_response = urlfetch.fetch(url)
 
@@ -144,9 +165,10 @@ class GetWebhookHandler(webapp2.RequestHandler):
         self.response.write(telegram_response.content)
 
 
-# Webhook url for Telegram to POST to
 class SetWebhookHandler(webapp2.RequestHandler):
+    """Webhook url for Telegram to POST to"""
     def get(self):
+        """RequestHandler's GET Method."""
         hook_url = 'https://%s.appspot.com/book%s' % (PROJECT_ID, API_TOKEN)
         url = URL + 'setWebhook'
         data = {'url': hook_url}
@@ -162,9 +184,10 @@ class SetWebhookHandler(webapp2.RequestHandler):
         self.response.write(result.content)
 
 
-# Remove webhook integration
 class DeleteWebhookHandler(webapp2.RequestHandler):
+    """Remove webhook integration"""
     def get(self):
+        """RequestHandler's GET Method."""
         url = URL + 'deleteWebhook'
         response_msg = urlfetch.fetch(url)
 
@@ -172,13 +195,18 @@ class DeleteWebhookHandler(webapp2.RequestHandler):
         self.response.write(response_msg.content)
 
 
-# Handle updates coming from Telegram : User interaction messages. Telegram will POST the body.
 class WebhookHandler(webapp2.RequestHandler):
+    """Handle updates coming from Telegram : User interaction messages and flow.
+    Telegram will POST the body."""
     def post(self):
-        logger.info("Received request: %s from %s" % (self.request.url, self.request.remote_addr))
+        """RequestHandler's POST Method."""
+        logger.info("Received request: {0} from {1}"
+                    .format(self.request.url, self.request.remote_addr))
+
         if API_TOKEN not in self.request.url:
             # Not coming from Telegram
-            logger.error("Post request without access_token from : %s" % self.request.remote_addr)
+            logger.error("Post request without access_token from : {0}"
+                         .format(self.request.remote_addr))
             return
 
         # Get chat details from received chat body, from Telegram.
@@ -199,73 +227,70 @@ class WebhookHandler(webapp2.RequestHandler):
             if chat_info is None:
                 # Show the welcome message.
                 if text == "/start":
-                    response_message = "Welcome to Khaana Khazana - Real taste of Madhepur. Start the conversation " \
-                                       "with /bookatable command. Let's see how it goes."
-                    send_message("%s" % response_message, chat_id)
+                    response_message = "Welcome to Khaana Khazana - Real taste of Madhepur. " \
+                                       "Start the conversation with /bookatable command. " \
+                                       "Let's see how it goes."
+                    send_message("{0}".format(response_message), chat_id)
+
                 # Start the conversation with end-user.
                 elif text == "/bookatable":
                     keyboard = [['2 People', '4 People'],
                                 ['6 People', '8 People'],
                                 ['10 People']]
                     reply_markup = {"keyboard": keyboard, "one_time_keyboard": True}
-                    send_message("Hello %s! Booking for how many people?" % first_name, chat_id, reply_markup)
+                    send_message("Hello {0}! Booking for how many people?"
+                                 .format(first_name), chat_id, reply_markup)
 
                     chat_dict['state'] = 'waiting_for_count'
                     update_db(chat_dict, chat_info)
                 else:
-                    send_message("Hello %s! Please start the conversation with /bookatable command." % first_name, chat_id)
+                    send_message("Hello {0}! Please start the conversation with /bookatable "
+                                 "command.".format(first_name), chat_id)
             else:
                 chat_dict = chat_info.to_dict()
                 chat_state = chat_dict["state"]
+
                 # Waiting for table size.
                 if chat_state == 'waiting_for_count':
                     try:
                         people_count = int(text.split(" ")[0])
-                    except Exception as e:
-                        send_message("Uh-Oh! Invalid input. Choose values from my keyboard!", chat_id)
-                        logger.info("Exception thrown : {0}".format(e.message))
+                    except Exception as exc:
+                        send_message("Uh-Oh! Invalid input. Choose values from my keyboard!",
+                                     chat_id)
                         return
 
-                    today = DT.date.today()
-                    keyboard = [[str(today + DT.timedelta(days=0)), str(today + DT.timedelta(days=1))],
-                                [str(today + DT.timedelta(days=2)), str(today + DT.timedelta(days=3))],
-                                [str(today + DT.timedelta(days=4)), str(today + DT.timedelta(days=5))],
-                                [str(today + DT.timedelta(days=6))]]
+                    keyboard = get_keyboard("date", None)
                     reply_markup = {"keyboard": keyboard, "one_time_keyboard": True}
                     send_message("Please select a date from the next seven days ", chat_id, reply_markup)
 
                     chat_dict['state'] = 'waiting_for_date'
                     chat_dict['table_size'] = people_count
                     update_db(chat_dict, chat_info)
+
                 # Waiting for reservation date.
                 elif chat_state == 'waiting_for_date':
                     try:
                         input_date = datetime.strptime(text, "%Y-%m-%d")
-                    except Exception as e:
+                    except Exception as exc:
                         send_message("Uh-Oh! Invalid input. Choose values from my keyboard!", chat_id)
-                        logger.info("Exception thrown : {0}".format(e.message))
                         return
 
-                    # Opening time 2PM, Closing Time 11PM | Time slots 1 Hour
-                    start_time = input_date.replace(hour=14, minute=00)
-                    keyboard = [[str(start_time), str(start_time + DT.timedelta(hours=1))],
-                                [str(start_time + DT.timedelta(hours=2)), str(start_time + DT.timedelta(hours=3))],
-                                [str(start_time + DT.timedelta(hours=4)), str(start_time + DT.timedelta(hours=5))],
-                                [str(start_time + DT.timedelta(hours=6)), str(start_time + DT.timedelta(hours=7))],
-                                [str(start_time + DT.timedelta(hours=8)), str(start_time + DT.timedelta(hours=9))]]
+                    keyboard = get_keyboard("time", input_date)
                     reply_markup = {"keyboard": keyboard, "one_time_keyboard": True}
 
-                    send_message("Please select a time-slot for %s " % input_date.strftime('%d %B %Y'), chat_id, reply_markup)
+                    send_message("Please select a time-slot for {0}".format(input_date.strftime('%d %B %Y')),
+                                 chat_id, reply_markup)
+
                     chat_dict['state'] = 'waiting_for_time'
                     chat_dict['date'] = input_date.date()
                     update_db(chat_dict, chat_info)
+
                 # Waiting to accept a time-slot from the end-user, from pre-defined time slots in our keyboard.
                 elif chat_state == 'waiting_for_time':
                     try:
                         input_time = datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
-                    except Exception as e:
+                    except Exception as exc:
                         send_message("Uh-Oh! Invalid input. Choose values from my keyboard!", chat_id)
-                        logger.info("Exception thrown : {0}".format(e.message))
                         return
 
                     chat_dict['time'] = input_time.time()
@@ -280,11 +305,13 @@ class WebhookHandler(webapp2.RequestHandler):
                         chat_dict['state'] = 'scheduled'
                         send_message("Booking completed with your existing email ID : %s \n"
                                      "Use /details command to fetch details and /cancel to cancel "
-                                     "the reservation. You will be receiving an email shortly." % chat_dict['user_email'], chat_id)
+                                     "the reservation. You will be receiving an email shortly."
+                                     % chat_dict['user_email'], chat_id)
                         send_mail_to_user(chat_dict['user_email'], 'success', chat_dict)
 
                     logger.info("chat_info values : {0}".format(chat_dict['time']))
                     update_db(chat_dict, chat_info)
+
                 # Waiting for email value from user for booking confirmation.
                 elif chat_state == "waiting_for_email":
                     if not EMAIL_REGEX.match(text):
@@ -315,12 +342,12 @@ class WebhookHandler(webapp2.RequestHandler):
                         booking_details += "Date : " + str(chat_dict["date"]) + "\n"
                         booking_details += "Time : " + str(chat_dict["time"]) + "\n"
 
-                        send_message("Booking details \n%s" % booking_details,  chat_id)
+                        send_message("Booking details \n%s" % booking_details, chat_id)
                     else:
                         send_message("Booking completed by your name. To modify, "
                                      "first /cancel and then /bookatable again. "
                                      "/details command to fetch booking details.", chat_id)
-        except Exception as e:
+        except Exception as exc:
             send_message("Bad news, %s - I crashed! I will be smarter one day. "
                          "Please start the conversation with /bookatable command." % first_name, chat_id)
 
@@ -329,7 +356,7 @@ class WebhookHandler(webapp2.RequestHandler):
             key.delete()
 
             # Log the exception and return.
-            logger.info("Exception thrown : {0}".format(e.message))
+            logger.info("Exception thrown : {0}".format(exc.message))
             return
 
 
